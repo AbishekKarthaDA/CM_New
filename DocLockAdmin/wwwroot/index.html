@@ -567,8 +567,8 @@ function loginsView() {
   const nApps = L.apps ? L.apps.reduce((a, d) => a + d.rows.length, 0) : '…';
   const tab = L.tab || 'logins';
   html += `<div class="card" style="margin-bottom:16px"><div class="tabs" style="border:0">
-      <button class="tab${tab === 'logins' ? ' active' : ''}" data-ltab="logins">${I.lock.replace(/20/g, '16')}Logins (AlterianAuth)<span class="n">${nLogins}</span></button>
-      <button class="tab${tab === 'apps' ? ' active' : ''}" data-ltab="apps">${I.users.replace(/20/g, '16')}Application users<span class="n">${nApps}</span></button>
+      <button class="tab${tab === 'logins' ? ' active' : ''}" data-ltab="logins">${I.lock.replace(/20/g, '16')}Application users<span class="n">${nLogins}</span></button>
+      <button class="tab${tab === 'apps' ? ' active' : ''}" data-ltab="apps">${I.users.replace(/20/g, '16')}Alterian Auth<span class="n">${nApps}</span></button>
     </div></div>`;
   return html + (tab === 'apps' ? appUsersView() : loginResultsView());
 }
@@ -584,8 +584,9 @@ function loginResultsView() {
   const enabled = all.filter(x => isOn(x.row.enabled));
   const errs = res.filter(s => s.error);
   const found = res.filter(s => s.rows.length);
-  const picked = enabled.filter(x => L.picked.has(loginKey(x.server, x.row.login)));
+  const picked = all.filter(x => L.picked.has(loginKey(x.server, x.row.login)));
 
+  html += `<p class="muted" style="margin:0 2px 14px;color:var(--muted)">AlterianAuth.AUTH.LoginIndex on every server. Disable sets <b>enabled</b> = 0 there and moves the user to <b>Disabled Users</b> in each client database on that server; enable sets 1 and moves them back to <b>Users</b>. AL.UserIndex.enabled is not changed. Reset password sets the default temporary password and expires it.</p>`;
   html += `<div class="stats">
       <div class="stat"><div class="stat-icon">${I.users}</div><div><div class="stat-val">${all.length}</div><div class="stat-lbl">Matching logins on ${found.length} server(s)</div></div></div>
       <div class="stat"><div class="stat-icon red">${I.lock}</div><div><div class="stat-val">${enabled.length}</div><div class="stat-lbl">Still enabled</div></div></div>
@@ -600,7 +601,7 @@ function loginResultsView() {
     else if (s.rows.length) body = `<div class="table-wrap" style="max-height:none"><table><thead><tr><th class="check"></th><th>Login</th><th>Status</th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>` +
       s.rows.map(r => {
         const on = isOn(r.enabled), k = loginKey(s.server, r.login);
-        return `<tr><td class="check">${on ? `<input type="checkbox" data-pick="${esc(k)}" ${L.picked.has(k) ? 'checked' : ''}>` : ''}</td>
+        return `<tr><td class="check"><input type="checkbox" data-pick="${esc(k)}" ${L.picked.has(k) ? 'checked' : ''}></td>
           <td><span class="who" style="font-weight:500">${avatar(r.login, true)}${esc(r.login)}</span></td>
           <td>${on ? '<span class="chip locked">Enabled</span>' : '<span class="chip free">Disabled</span>'}</td>
           ${cols.map(c => `<td>${r[c] === null || r[c] === undefined ? '<span style="color:var(--muted)">—</span>' : esc(plain(r[c]))}</td>`).join('')}</tr>`;
@@ -612,8 +613,10 @@ function loginResultsView() {
 
   html += `<div class="card">
     <div class="toolbar"><h3>Results for ${esc(L.searched)}_*</h3>
-      <button class="btn" data-act="pick-all" ${enabled.length ? '' : 'disabled'}>${picked.length === enabled.length && enabled.length ? 'Clear selection' : 'Select all enabled'}</button>
+      <button class="btn" data-act="pick-all" ${all.length ? '' : 'disabled'}>${picked.length === all.length && all.length ? 'Clear selection' : 'Select all'}</button>
       <button class="btn" data-act="export-logins" ${all.length ? '' : 'disabled'}>${I.dl}Export</button>
+      <button class="btn" data-act="reset-pwd" ${picked.length ? '' : 'disabled'}>Reset password</button>
+      <button class="btn" data-act="enable-logins" ${picked.length ? '' : 'disabled'}>Enable ${picked.length || ''} selected</button>
       <button class="btn danger" data-act="disable-logins" ${picked.length ? '' : 'disabled'}>${I.unlock}Disable ${picked.length || ''} selected</button>
     </div>
     ${blocks || `<div class="empty"><div class="ico green">${I.check.replace(/18/g, '26')}</div><h4>No matching logins</h4><div>No server has a login starting with ${esc(L.searched)}_.</div></div>`}
@@ -622,10 +625,10 @@ function loginResultsView() {
   return html;
 }
 
-// Application users = AL.UserIndex rows in each client database (enable/disable also moves the user folder)
+// "Alterian Auth" tab = AL.UserIndex rows in each client database (enabled column only)
 function appUsersView() {
   const L = state.login;
-  let html = `<p class="muted" style="margin:0 2px 14px;color:var(--muted)">AL.UserIndex in every client database. Disable moves the user to <b>Disabled Users</b>; enable moves them back to <b>Users</b>.</p>`;
+  let html = `<p class="muted" style="margin:0 2px 14px;color:var(--muted)">AL.UserIndex in every client database. Enable / disable changes only the <b>enabled</b> column there. The folder and AlterianAuth.AUTH.LoginIndex are not changed.</p>`;
   if (L.appVerified) html += `<div class="banner ${L.appVerified.ok ? 'ok' : ''}">${L.appVerified.ok ? I.check : I.alert}<div>${esc(L.appVerified.text)}</div></div>`;
   if (!L.apps) return html + `<div class="card" style="padding:18px">${Array.from({ length: 4 }, () => '<div class="skel" style="margin:14px 0"></div>').join('')}</div>`;
 
@@ -640,11 +643,10 @@ function appUsersView() {
       <div class="table-wrap" style="max-height:none"><table><thead><tr><th class="check"></th><th>User</th><th>Status</th><th>Folder</th>${extra.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>` +
       d.rows.map(r => {
         const k = appKey(d.server, d.db, r.name), on = isOn(r.enabled);
-        const folderOk = on ? r.folder === 'Users' : r.folder === 'Disabled Users';
         return `<tr><td class="check"><input type="checkbox" data-apppick="${esc(k)}" ${L.appPicked.has(k) ? 'checked' : ''}></td>
           <td><span class="who" style="font-weight:500">${avatar(r.name, true)}${esc(r.name)}</span></td>
           <td>${on ? '<span class="chip locked">Enabled</span>' : '<span class="chip free">Disabled</span>'}</td>
-          <td>${r.folder ? esc(r.folder) : '<span style="color:var(--muted)">—</span>'}${folderOk ? '' : ' <span class="chip err" title="Folder does not match the enabled state">mismatch</span>'}</td>
+          <td>${r.folder ? esc(r.folder) : '<span style="color:var(--muted)">—</span>'}</td>
           ${extra.map(c => `<td>${r[c] === null || r[c] === undefined ? '<span style="color:var(--muted)">—</span>' : esc(plain(r[c]))}</td>`).join('')}</tr>`;
       }).join('') + '</tbody></table></div></div>').join('');
 
@@ -664,29 +666,28 @@ async function loadAppUsers(name) {
   const L = state.login;
   try {
     L.apps = await api('/api/app-users?' + qs({ env: state.env, name }));
-    L.appPicked = new Set(L.apps.flatMap(d => d.rows.filter(r => isOn(r.enabled)).map(r => appKey(d.server, d.db, r.name))));
+    L.appPicked = new Set();
   } catch (e) { L.apps = []; toast(e.message, 'err'); }
 }
 
 async function setAppUsers(enable, btn) {
   const L = state.login, env = state.env;
   const users = [...L.appPicked].map(k => { const [server, db, ...u] = k.split('|'); return { server, db, user: u.join('|') }; });
-  const folder = enable ? 'Users' : 'Disabled Users';
-  const confirm = await confirmAction(`${enable ? 'Enable' : 'Disable'} ${users.length} application user(s)?`,
-    `Sets enabled = ${enable ? 1 : 0} and moves them to the "${folder}" folder in ${new Set(users.map(u => u.server + u.db)).size} client database(s) in ${env}.`, L.searched);
+  const confirm = await confirmAction(`${enable ? 'Enable' : 'Disable'} ${users.length} user(s) in AL.UserIndex?`,
+    `Sets AL.UserIndex.enabled = ${enable ? 1 : 0} in ${new Set(users.map(u => u.server + u.db)).size} client database(s) in ${env}. The folder and AlterianAuth logins are not changed.`, L.searched);
   if (confirm === null) return;
   btn.disabled = true;
   try {
     const r = await api('/api/app-users/set-enabled', { env, name: L.searched, confirm, enabled: enable, users });
     const changed = r.reduce((a, x) => a + x.rows, 0), failed = r.filter(x => x.error);
-    toast(`${enable ? 'Enabled' : 'Disabled'} ${changed} application user(s).` + (failed.length ? ` ${failed.length} failed.` : ''), failed.length ? 'err' : 'ok');
+    toast(`${enable ? 'Enabled' : 'Disabled'} ${changed} user(s) in AL.UserIndex.` + (failed.length ? ` ${failed.length} failed.` : ''), failed.length ? 'err' : 'ok');
     L.apps = null; render();
     await loadAppUsers(L.searched);
     // verify: every changed user now has the expected state and folder
     const wanted = new Set(users.map(u => appKey(u.server, u.db, u.user)));
-    const wrong = (L.apps || []).flatMap(d => d.rows.filter(x => wanted.has(appKey(d.server, d.db, x.name)) && (isOn(x.enabled) !== enable || x.folder !== folder)).map(x => `${d.db} / ${x.name}`));
+    const wrong = (L.apps || []).flatMap(d => d.rows.filter(x => wanted.has(appKey(d.server, d.db, x.name)) && isOn(x.enabled) !== enable).map(x => `${d.db} / ${x.name}`));
     L.appVerified = !wrong.length && !failed.length
-      ? { ok: true, text: `Verified: ${users.length} user(s) are ${enable ? 'enabled' : 'disabled'} and in "${folder}".` }
+      ? { ok: true, text: `Verified: ${users.length} user(s) are ${enable ? 'enabled' : 'disabled'} in AL.UserIndex.` }
       : { ok: false, text: [...wrong.map(w => `Not as expected: ${w}`), ...failed.map(f => `${short(f.server)} / ${f.db} / ${f.user}: ${f.error}`)].join('\n') };
     render();
   } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
@@ -701,35 +702,58 @@ async function findLogins(keepVerified) {
   try {
     L.results = await api('/api/logins?' + qs({ env: state.env, name }));
     L.searched = name.toUpperCase(); L.at = new Date();
-    L.picked = new Set(L.results.flatMap(s => s.rows.filter(r => isOn(r.enabled)).map(r => loginKey(s.server, r.login))));
+    L.picked = new Set();
   } catch (e) { toast(e.message, 'err'); }
   L.loading = false; render();
   const input = $('loginName'); if (input && !keepVerified) input.focus();
 }
 
-async function disableLogins(btn) {
+async function setLogins(enable, btn) {
   const L = state.login, env = state.env;
   const logins = [...L.picked].map(k => { const i = k.indexOf('|'); return { server: k.slice(0, i), login: k.slice(i + 1) }; });
   const servers = new Set(logins.map(l => l.server)).size;
   const errs = (L.results || []).filter(s => s.error).length;
-  const confirm = await confirmAction(`Disable ${logins.length} login(s)?`,
-    `Sets enabled = 0 for ${logins.length} login(s) matching ${L.searched}_* on ${servers} server(s) in ${env}.` +
+  const confirm = await confirmAction(`${enable ? 'Enable' : 'Disable'} ${logins.length} login(s) in AlterianAuth.AUTH.LoginIndex?`,
+    `Sets AlterianAuth.AUTH.LoginIndex.enabled = ${enable ? 1 : 0} for ${logins.length} login(s) matching ${L.searched}_* on ${servers} server(s) in ${env}, and moves each user to the "${enable ? 'Users' : 'Disabled Users'}" folder in the client databases on those servers.` +
     (errs ? ` ${errs} server(s) could not be checked and will be skipped.` : '') + ' Export first if you want a copy of the rows.', L.searched);
   if (confirm === null) return;
   btn.disabled = true;
   try {
-    const r = await api('/api/disable-logins', { env, name: L.searched, confirm, logins });
+    const r = await api('/api/disable-logins', { env, name: L.searched, confirm, logins, enabled: enable });
     const changed = r.reduce((a, x) => a + x.rows, 0), failed = r.filter(x => x.error);
-    toast(`Disabled ${changed} login(s).` + (failed.length ? ` ${failed.length} failed.` : ''), failed.length ? 'err' : 'ok');
+    const moved = r.reduce((a, x) => a + (x.moved || 0), 0);
+    toast(`${enable ? 'Enabled' : 'Disabled'} ${changed} login(s); moved ${moved} user folder(s).` + (failed.length ? ` ${failed.length} had errors.` : ''), failed.length ? 'err' : 'ok');
     await findLogins(true);   // verify: search again
-    const left = (L.results || []).flatMap(s => s.rows.filter(x => isOn(x.enabled)));
+    loadAppUsers(L.searched).then(() => { if (state.mode === 'logins') renderContent(); });   // folders changed
+    const wanted = new Set(logins.map(l => loginKey(l.server, l.login)));
+    const left = (L.results || []).flatMap(s => s.rows.filter(x => wanted.has(loginKey(s.server, x.login)) && isOn(x.enabled) !== enable));
     const notChecked = (L.results || []).filter(s => s.error).length;
     L.verified = left.length === 0 && notChecked === 0 && !failed.length
-      ? { ok: true, text: `Verified: no enabled logins matching ${L.searched}_* remain on any ${env} server.` }
-      : { ok: false, text: [left.length ? `${left.length} login(s) still enabled.` : '', notChecked ? `${notChecked} server(s) could not be verified.` : '',
+      ? { ok: true, text: `Verified: ${logins.length} login(s) are ${enable ? 'enabled' : 'disabled'} in AlterianAuth on ${env}.` }
+      : { ok: false, text: [left.length ? `${left.length} login(s) not ${enable ? 'enabled' : 'disabled'}.` : '', notChecked ? `${notChecked} server(s) could not be verified.` : '',
           ...failed.map(f => `${short(f.server)} / ${f.login}: ${f.error}`)].filter(Boolean).join('\n') };
     render();
   } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+}
+
+// Port of CMAdminTool "Reset Password": default temporary password (DocLock:ResetPassword), expired at once
+async function resetPasswords(btn) {
+  const L = state.login, env = state.env;
+  const logins = [...L.picked].map(k => { const i = k.indexOf('|'); return { server: k.slice(0, i), login: k.slice(i + 1) }; });
+  const confirm = await confirmAction(`Reset the password for ${logins.length} login(s)?`,
+    `Clears failed logons, sets the default temporary password and expires it, so each user must choose a new password at next logon. ${logins.map(l => l.login).join(', ')} in ${env}.`, L.searched);
+  if (confirm === null) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/api/reset-password', { env, name: L.searched, confirm, logins });
+    const done = r.filter(x => !x.error).length, failed = r.filter(x => x.error);
+    toast(`Reset ${done} password(s).` + (failed.length ? ` ${failed.length} failed.` : ''), failed.length ? 'err' : 'ok');
+    L.verified = failed.length
+      ? { ok: false, text: failed.map(f => `${short(f.server)} / ${f.login}: ${f.error}`).join('\n') }
+      : { ok: true, text: `Password reset for ${done} login(s). They must change it at next logon.` };
+    render();
+  } catch (e) { toast(e.message, 'err'); }
+  btn.disabled = false;
 }
 
 function exportLogins() {
@@ -810,12 +834,14 @@ document.addEventListener('click', e => {
     const L = state.login, all = (L.apps || []).flatMap(d => d.rows.map(r => appKey(d.server, d.db, r.name)));
     L.appPicked = all.every(k => L.appPicked.has(k)) ? new Set() : new Set(all); renderContent();
   }
-  else if (el.dataset.act === 'disable-logins') disableLogins(el);
+  else if (el.dataset.act === 'disable-logins') setLogins(false, el);
+  else if (el.dataset.act === 'enable-logins') setLogins(true, el);
+  else if (el.dataset.act === 'reset-pwd') resetPasswords(el);
   else if (el.dataset.act === 'export-logins') exportLogins();
   else if (el.dataset.act === 'pick-all') {
     const L = state.login;
-    const enabled = (L.results || []).flatMap(s => s.rows.filter(r => isOn(r.enabled)).map(r => loginKey(s.server, r.login)));
-    L.picked = enabled.every(k => L.picked.has(k)) ? new Set() : new Set(enabled); renderContent();
+    const all = (L.results || []).flatMap(s => s.rows.map(r => loginKey(s.server, r.login)));
+    L.picked = all.every(k => L.picked.has(k)) ? new Set() : new Set(all); renderContent();
   }
   else if (el.dataset.env) { if (el.dataset.env !== state.env) selectEnv(el.dataset.env, false); }
   else if (el.dataset.db) selectDb(el.dataset.server, el.dataset.db);

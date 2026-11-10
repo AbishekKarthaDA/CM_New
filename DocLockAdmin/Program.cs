@@ -79,10 +79,60 @@ app.MapPost("/api/disable-logins", async (DisableRequest r) => await Run(async (
         return Results.BadRequest(new { error = "Confirmation did not match the name. Nothing was changed." });
     if (r.Logins is null || r.Logins.Count == 0) return Results.BadRequest(new { error = "No logins selected." });
 
+    var folder = r.Enabled ? opt.EnabledUsersFolder : opt.DisabledUsersFolder;
+    var discovered = await sql.DiscoverAsync(r.Env, false);
     var results = new List<object>();
     foreach (var l in r.Logins)
     {
-        // Only logins that belong to the searched name can be disabled through this call
+        // Only logins that belong to the searched name can be changed through this call
+        if (!l.Login.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase))
+        {
+            results.Add(new { l.Server, l.Login, rows = 0, moved = 0, error = $"'{l.Login}' does not start with {prefix}_ (skipped)" });
+            continue;
+        }
+        int rows = 0, moved = 0;
+        var errors = new List<string>();
+        try
+        {
+            var t = sql.AuthTarget(r.Env, l.Server);
+            rows = await sql.ExecuteAsync(t, r.Enabled ? Queries.EnableLogin : Queries.DisableLogin, ("@login", l.Login));
+            sql.Audit(t, r.Enabled ? "ENABLE LOGIN" : "DISABLE LOGIN", l.Login, rows);
+
+            // Then move the matching AL.UserIndex user to the Users / Disabled Users folder in every client
+            // database on the same server. Only folderID changes; AL.UserIndex.enabled is left alone.
+            var dbs = discovered.FirstOrDefault(s => s.Server.Equals(t.Server, StringComparison.OrdinalIgnoreCase))?.Databases ?? [];
+            foreach (var db in dbs)
+            {
+                var dt = new Target(r.Env, t.Server, db);
+                try
+                {
+                    var res = await sql.QueryAsync(dt, Queries.MoveUserFolder, ("@user", l.Login), ("@folder", folder));
+                    int n = Convert.ToInt32(res.Rows.FirstOrDefault()?["n"] ?? 0);
+                    if (n > 0) { moved += n; sql.Audit(dt, "MOVE USER FOLDER", $"{l.Login} -> {folder}", n); }
+                }
+                catch (SqlException ex) { errors.Add($"{db}: {ex.Message}"); }
+            }
+        }
+        catch (Exception ex) when (ex is SqlException or BadTargetException) { errors.Add(ex.Message); }
+        results.Add(new { l.Server, l.Login, rows, moved, error = errors.Count > 0 ? string.Join("\n", errors) : null });
+    }
+    return Results.Ok(results);
+}));
+
+// ---------- Password reset (port of CMAdminTool "Reset Password") ----------
+
+app.MapPost("/api/reset-password", async (DisableRequest r) => await Run(async () =>
+{
+    var prefix = Logins.CleanPrefix(r.Name, opt.MinLoginPrefixLength);
+    if (!string.Equals(r.Confirm?.Trim(), prefix, StringComparison.OrdinalIgnoreCase))
+        return Results.BadRequest(new { error = "Confirmation did not match the name. Nothing was changed." });
+    if (r.Logins is null || r.Logins.Count == 0) return Results.BadRequest(new { error = "No logins selected." });
+    if (string.IsNullOrEmpty(opt.ResetPassword))
+        return Results.BadRequest(new { error = "DocLock:ResetPassword is not set in appsettings.Local.json. Nothing was changed." });
+
+    var results = new List<object>();
+    foreach (var l in r.Logins)
+    {
         if (!l.Login.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase))
         {
             results.Add(new { l.Server, l.Login, rows = 0, error = $"'{l.Login}' does not start with {prefix}_ (skipped)" });
@@ -91,9 +141,9 @@ app.MapPost("/api/disable-logins", async (DisableRequest r) => await Run(async (
         try
         {
             var t = sql.AuthTarget(r.Env, l.Server);
-            int rows = await sql.ExecuteAsync(t, Queries.DisableLogin, ("@login", l.Login));
-            sql.Audit(t, "DISABLE LOGIN", l.Login, rows);
-            results.Add(new { server = t.Server, l.Login, rows, error = (string?)null });
+            await sql.ExecuteAsync(t, Queries.ResetPassword, ("@login", l.Login), ("@password", opt.ResetPassword));
+            sql.Audit(t, "RESET PASSWORD", l.Login, 1);
+            results.Add(new { server = t.Server, l.Login, rows = 1, error = (string?)null });
         }
         catch (Exception ex) when (ex is SqlException or BadTargetException)
         {
@@ -115,8 +165,7 @@ app.MapPost("/api/app-users/set-enabled", async (AppUserRequest r) => await Run(
         return Results.BadRequest(new { error = "Confirmation did not match the name. Nothing was changed." });
     if (r.Users is null || r.Users.Count == 0) return Results.BadRequest(new { error = "No users selected." });
 
-    var folder = r.Enabled ? opt.EnabledUsersFolder : opt.DisabledUsersFolder;
-    var action = r.Enabled ? "ENABLE APP USER" : "DISABLE APP USER";
+    var action = r.Enabled ? "ENABLE USERINDEX" : "DISABLE USERINDEX";
     var results = new List<object>();
     foreach (var u in r.Users)
     {
@@ -128,9 +177,8 @@ app.MapPost("/api/app-users/set-enabled", async (AppUserRequest r) => await Run(
         try
         {
             var t = await sql.TargetAsync(r.Env, u.Server, u.Db);
-            var res = await sql.QueryAsync(t, Queries.SetAppUserEnabled, ("@user", u.User), ("@enabled", r.Enabled), ("@folder", folder));
-            int rows = Convert.ToInt32(res.Rows.FirstOrDefault()?["n"] ?? 0);
-            sql.Audit(t, action, $"{u.User} -> {folder}", rows);
+            int rows = await sql.ExecuteAsync(t, Queries.SetAppUserEnabled, ("@user", u.User), ("@enabled", r.Enabled));
+            sql.Audit(t, action, u.User, rows);
             results.Add(new { server = t.Server, db = t.Db, u.User, rows, error = (string?)null });
         }
         catch (Exception ex) when (ex is SqlException or BadTargetException)
@@ -173,12 +221,14 @@ public class DocLockOptions
     public int MinLoginPrefixLength { get; set; } = 3;
     public string EnabledUsersFolder { get; set; } = "Users";
     public string DisabledUsersFolder { get; set; } = "Disabled Users";
+    // Temporary password for "Reset password" (expired immediately). Set it in appsettings.Local.json, not here.
+    public string ResetPassword { get; set; } = "";
 }
 
 public record LoginRef(string Server, string Login);
 public record AppUserRef(string Server, string Db, string User);
 public record AppUserRequest(string Env, string Name, string? Confirm, bool Enabled, List<AppUserRef>? Users);
-public record DisableRequest(string Env, string Name, string? Confirm, List<LoginRef>? Logins);
+public record DisableRequest(string Env, string Name, string? Confirm, List<LoginRef>? Logins, bool Enabled = false);
 
 public static class Logins
 {
@@ -254,21 +304,42 @@ public static class Queries
         ORDER BY u.[name]
         """;
 
-    // Enable/disable an application user and move it to the matching user folder (folderType 1).
-    // Refuses to change anything unless exactly one folder with that name exists.
-    public const string SetAppUserEnabled = """
+    // "Alterian Auth" tab: only the enabled column of AL.UserIndex (the folder is not touched)
+    public const string SetAppUserEnabled = "UPDATE AL.UserIndex SET enabled = @enabled, modified = GETDATE() WHERE [name] = @user AND enabled <> @enabled";
+
+    // "Application users" tab, after LoginIndex changes: move the user to the matching user folder (folderType 1).
+    // Does nothing if this database has no such user; refuses unless exactly one folder with that name exists.
+    public const string MoveUserFolder = """
         SET NOCOUNT ON;
+        IF NOT EXISTS (SELECT 1 FROM AL.UserIndex WHERE [name] = @user) BEGIN SELECT 0 AS n; RETURN; END
         IF (SELECT COUNT(*) FROM AL.FolderIndex WHERE folderType = 1 AND [name] = @folder) <> 1
-            THROW 50001, 'Expected exactly one user folder (folderType 1) with the target name in this database. Nothing was changed.', 1;
+            THROW 50001, 'Expected exactly one user folder (folderType 1) with the target name in this database. Folder not changed.', 1;
         UPDATE AL.UserIndex
-           SET enabled = @enabled,
-               folderID = (SELECT id FROM AL.FolderIndex WHERE folderType = 1 AND [name] = @folder)
+           SET folderID = (SELECT id FROM AL.FolderIndex WHERE folderType = 1 AND [name] = @folder),
+               modified = GETDATE()
          WHERE [name] = @user;
         SELECT @@ROWCOUNT AS n;
         """;
 
+    // Same steps as CMAdminTool ResetPasswordQuery, parameterised: clear failed logons, drop the default password
+    // from history so it can be reused, set it, then expire it so the user must change it at next logon.
+    public const string ResetPassword = """
+        SET NOCOUNT ON;
+        DECLARE @loginID uniqueidentifier, @salted varbinary(100);
+        SELECT @loginID = id FROM AUTH.LoginIndex WHERE [login] = @login;
+        IF @loginID IS NULL THROW 50002, 'Login not found. Nothing was changed.', 1;
+        DELETE FROM AUTH.LoginHistory WHERE [login] = @login AND failreason > 0;
+        DECLARE @sha1pass char(27) = (SELECT HASHBYTES('sha1', @password) FOR XML PATH(''), BINARY BASE64);
+        SELECT @salted = HASHBYTES('SHA1', CAST(@loginID AS varchar(36)) + @sha1pass);
+        DELETE FROM AUTH.LoginPasswordHistory WHERE loginID = @loginID AND [password] = @salted;
+        EXEC AUTH.ChangePasswordNew @loginID, @password;
+        EXEC AUTH.ExpirePassword @loginID;
+        UPDATE AUTH.LoginIndex SET modified = GETDATE() WHERE id = @loginID;
+        """;
+
     // Exact login only, and only if still enabled, so re-running is harmless
-    public const string DisableLogin = "UPDATE AUTH.LoginIndex SET enabled = 0 WHERE [login] = @login AND enabled <> 0";
+    public const string DisableLogin = "UPDATE AUTH.LoginIndex SET enabled = 0, modified = GETDATE() WHERE [login] = @login AND enabled <> 0";
+    public const string EnableLogin = "UPDATE AUTH.LoginIndex SET enabled = 1, modified = GETDATE() WHERE [login] = @login AND enabled <> 1";
 
     // Same effect as CMAdminTool "Unlock All"
     public const string UnlockAllDocs = "UPDATE AL.DocumentIndex SET LockingUserID = NULL WHERE LockingUserID IS NOT NULL";
