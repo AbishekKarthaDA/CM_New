@@ -10,3 +10,11 @@ before_*.csv
 disable_log_*.csv
 delete_log_*.csv
 query_results_*.csv
+
+# Other local folders/files in C:\Apps that are not part of this repo
+.vscode/
+.vs/
+dashboard_utility/
+IG MZP IMS API Utility_*/
+app.exe
+*.docx
