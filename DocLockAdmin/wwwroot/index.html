@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document Lock Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6fb; --surface: #ffffff; --surface-2: #f8f9fc; --sidebar: #0f1729; --sidebar-2: #18223a;
+    --sidebar-text: #c9d2e6; --sidebar-muted: #7d89a6; --sidebar-active: #24324f;
+    --text: #141a2b; --muted: #667089; --border: #e3e7f0; --border-strong: #cfd5e2;
+    --brand: #4f6bff; --brand-2: #7b5cff; --brand-soft: #eef0ff; --brand-text: #ffffff;
+    --danger: #e5484d; --danger-soft: #fdecec; --success: #12a571; --success-soft: #e6f7f0;
+    --warn: #c27c0e; --warn-soft: #fff5e0; --prod: #ff5d5d; --dev: #2fb3ff; --test: #ffb02e;
+    --shadow: 0 1px 2px rgb(16 24 40 / .05), 0 4px 16px rgb(16 24 40 / .06);
+    --shadow-lg: 0 20px 50px rgb(16 24 40 / .25);
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0f1a; --surface: #131a2a; --surface-2: #182033; --sidebar: #080b14; --sidebar-2: #0f1424;
+      --sidebar-text: #c9d2e6; --sidebar-muted: #6f7a96; --sidebar-active: #1a2440;
+      --text: #e8ecf6; --muted: #8e98b3; --border: #232c42; --border-strong: #303b57;
+      --brand: #7088ff; --brand-2: #9a7cff; --brand-soft: #1c2447; --brand-text: #0b0f1a;
+      --danger: #ff6b6f; --danger-soft: #3a1619; --success: #3fd39b; --success-soft: #10301f;
+      --warn: #f2b84b; --warn-soft: #33270f;
+      --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 4px 16px rgb(0 0 0 / .25);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 Inter, "Segoe UI", system-ui, sans-serif;
+         -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  svg { flex-shrink: 0; }
+
+  /* ---------- shell ---------- */
+  .app { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--sidebar); color: var(--sidebar-text); display: flex; flex-direction: column;
+             height: 100vh; position: sticky; top: 0; }
+  .brand { display: flex; align-items: center; gap: 12px; padding: 20px 20px 16px; }
+  .brand-logo { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: #fff;
+                background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 6px 18px rgb(79 107 255 / .45); }
+  .brand-name { font-weight: 700; color: #fff; font-size: 15px; letter-spacing: -.01em; }
+  .brand-sub { font-size: 11.5px; color: var(--sidebar-muted); }
+  .side-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--sidebar-muted);
+                padding: 14px 20px 8px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .env-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0 16px; padding: 4px;
+                background: var(--sidebar-2); border-radius: 10px; }
+  .env-btn { border: 0; background: transparent; color: var(--sidebar-text); padding: 7px 6px; border-radius: 7px;
+             cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .env-btn:hover { background: var(--sidebar-active); }
+  .env-btn.active { background: #fff; color: #0f1729; box-shadow: 0 1px 3px rgb(0 0 0 / .3); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dev); }
+  .dot.prod { background: var(--prod); } .dot.test { background: var(--test); }
+  .side-search { margin: 0 16px; position: relative; }
+  .side-search input { width: 100%; background: var(--sidebar-2); border: 1px solid transparent; border-radius: 9px;
+                       padding: 9px 12px 9px 34px; color: #fff; outline: none; }
+  .side-search input:focus { border-color: var(--brand); }
+  .side-search input::placeholder { color: var(--sidebar-muted); }
+  .side-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--sidebar-muted); }
+  .icon-btn { border: 0; background: transparent; color: var(--sidebar-muted); cursor: pointer; padding: 4px; border-radius: 6px; display: grid; place-items: center; }
+  .icon-btn:hover { color: #fff; background: var(--sidebar-active); }
+  .icon-btn.spin svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .db-list { flex: 1; overflow-y: auto; padding: 4px 10px 16px; margin-top: 8px; }
+  .db-list::-webkit-scrollbar { width: 8px; } .db-list::-webkit-scrollbar-thumb { background: var(--sidebar-active); border-radius: 4px; }
+  .srv { margin-top: 10px; }
+  .srv-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 11.5px; color: var(--sidebar-muted); font-weight: 600; }
+  .srv-head .count { margin-left: auto; background: var(--sidebar-2); border-radius: 10px; padding: 0 7px; font-weight: 500; }
+  .srv-err { color: #ff9a9a; font-size: 11.5px; padding: 2px 10px 6px 30px; }
+  .db-item { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; color: var(--sidebar-text);
+             padding: 7px 10px; border-radius: 8px; cursor: pointer; text-align: left; font-size: 13.5px; }
+  .db-item:hover { background: var(--sidebar-active); color: #fff; }
+  .db-item.active { background: linear-gradient(90deg, rgb(79 107 255 / .28), rgb(79 107 255 / .08)); color: #fff;
+                    box-shadow: inset 3px 0 0 var(--brand); }
+  .db-item svg { color: var(--sidebar-muted); }
+  .db-item.active svg { color: var(--brand); }
+  .db-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-nav { display: grid; gap: 2px; padding: 0 10px 6px; }
+  .nav-item { display: flex; align-items: center; gap: 11px; border: 0; background: transparent; color: var(--sidebar-text);
+              padding: 9px 12px; border-radius: 9px; cursor: pointer; font-weight: 500; text-align: left; }
+  .nav-item svg { color: var(--sidebar-muted); }
+  .nav-item:hover { background: var(--sidebar-active); color: #fff; }
+  .nav-item.active { background: var(--sidebar-active); color: #fff; }
+  .nav-item.active svg { color: var(--brand); }
+  .side-hint { flex: 1; padding: 16px 20px; font-size: 12.5px; color: var(--sidebar-muted); }
+  .side-hint b { color: var(--sidebar-text); font-weight: 500; }
+  .login-search { display: flex; gap: 10px; flex-wrap: wrap; padding: 18px; }
+  .login-search .search { flex: 1; min-width: 220px; }
+  .login-search .search input { width: 100%; padding-top: 10px; padding-bottom: 10px; font-size: 15px; }
+  .hint { color: var(--muted); font-size: 12.5px; padding: 0 18px 16px; margin-top: -6px; }
+  .hint code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-family: Consolas, monospace; }
+  .srv-block + .srv-block { border-top: 1px solid var(--border); }
+  .srv-title { display: flex; align-items: center; gap: 10px; padding: 12px 18px; font-weight: 600; font-size: 13.5px; background: var(--surface-2); }
+  .srv-title .muted { color: var(--muted); font-weight: 400; font-size: 12.5px; }
+  .srv-title .chip { margin-left: auto; }
+  .chip.err { background: var(--danger-soft); color: var(--danger); }
+  .chip.none { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+  td.check, th.check { width: 36px; padding-right: 0; }
+  input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+  .banner.ok { background: var(--success-soft); color: var(--success); }
+  .side-foot { border-top: 1px solid var(--sidebar-2); padding: 14px 20px; font-size: 12px; color: var(--sidebar-muted); display: flex; gap: 10px; align-items: center; }
+  .side-foot b { color: var(--sidebar-text); font-weight: 500; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 28px; border-bottom: 1px solid var(--border);
+            background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 5; }
+  .crumbs { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13.5px; min-width: 0; }
+  .crumbs b { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .menu-btn { display: none; }
+  .content { padding: 28px; max-width: 1400px; width: 100%; }
+
+  /* ---------- header & stats ---------- */
+  .hero { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; }
+  .hero h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; font-weight: 700; }
+  .hero p { margin: 4px 0 0; color: var(--muted); }
+  .env-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px;
+              border-radius: 20px; background: var(--brand-soft); color: var(--brand); vertical-align: middle; margin-left: 10px; }
+  .env-pill.prod { background: var(--danger-soft); color: var(--danger); }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 22px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px;
+          box-shadow: var(--shadow); display: flex; gap: 14px; align-items: center; }
+  .stat-icon { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); }
+  .stat-icon.red { background: var(--danger-soft); color: var(--danger); }
+  .stat-icon.green { background: var(--success-soft); color: var(--success); }
+  .stat-val { font-size: 22px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+  .stat-lbl { color: var(--muted); font-size: 12.5px; }
+  .stat-val.small { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------- cards, tabs ---------- */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0; }
+  .tabs { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--border); }
+  .tab { border: 0; background: transparent; padding: 9px 14px; border-radius: 8px; cursor: pointer; color: var(--muted);
+         font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .tab:hover { background: var(--surface-2); color: var(--text); }
+  .tab.active { background: var(--brand-soft); color: var(--brand); }
+  .tab .n { font-size: 11.5px; background: var(--surface-2); color: var(--muted); padding: 0 7px; border-radius: 10px; }
+  .tab.active .n { background: var(--brand); color: var(--brand-text); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .toolbar h3 { margin: 0; font-size: 15px; font-weight: 600; margin-right: auto; display: flex; align-items: center; gap: 10px; }
+  .search { position: relative; }
+  .search input { width: 240px; padding: 8px 12px 8px 34px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); outline: none; }
+  .search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--border-strong);
+         background: var(--surface); cursor: pointer; font-weight: 500; white-space: nowrap; transition: background .15s, transform .05s; }
+  .btn:hover { background: var(--surface-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff; border-color: transparent; }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.danger { background: var(--danger); color: #fff; border-color: transparent; }
+  .btn.danger:hover { filter: brightness(1.07); }
+  .btn.ghost-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); background: var(--danger-soft); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+
+  .split { display: grid; grid-template-columns: 300px 1fr; min-height: 480px; }
+  .users { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+  .users .search { padding: 14px; } .users .search input { width: 100%; } .users .search svg { left: 25px; }
+  .user-list { overflow-y: auto; max-height: 560px; padding: 0 8px 10px; }
+  .user { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; background: transparent; border-radius: 9px;
+          cursor: pointer; text-align: left; }
+  .user:hover { background: var(--surface-2); }
+  .user.active { background: var(--brand-soft); }
+  .user.active .uname { color: var(--brand); }
+  .uname { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+  .usub { font-size: 11.5px; color: var(--muted); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; color: #fff; flex-shrink: 0; }
+  .avatar.sm { width: 22px; height: 22px; font-size: 9.5px; }
+  .detail { min-width: 0; display: flex; flex-direction: column; }
+
+  /* ---------- table ---------- */
+  .table-wrap { overflow: auto; max-height: 620px; }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+  th { position: sticky; top: 0; background: var(--surface-2); text-align: left; font-weight: 600; color: var(--muted); font-size: 11.5px;
+       text-transform: uppercase; letter-spacing: .04em; padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+  th:hover { color: var(--text); }
+  th .arrow { opacity: .5; margin-left: 4px; }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody tr { transition: background .1s; }
+  tbody tr:hover { background: var(--surface-2); }
+  td.mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .chip.locked { background: var(--danger-soft); color: var(--danger); }
+  .chip.free { background: var(--success-soft); color: var(--success); }
+  .who { display: inline-flex; align-items: center; gap: 8px; }
+
+  .empty { padding: 60px 24px; text-align: center; color: var(--muted); }
+  .empty .ico { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; margin: 0 auto 14px; background: var(--brand-soft); color: var(--brand); }
+  .empty .ico.green { background: var(--success-soft); color: var(--success); }
+  .empty h4 { margin: 0 0 4px; color: var(--text); font-size: 15px; }
+  .welcome { padding: 80px 24px; }
+  .welcome h4 { font-size: 20px; }
+
+  .skel { height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  .skel.dark { background: linear-gradient(90deg, var(--sidebar-2), var(--sidebar-active), var(--sidebar-2)); background-size: 200% 100%; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: 10px; margin-bottom: 18px;
+            background: var(--warn-soft); color: var(--warn); font-size: 13px; white-space: pre-wrap; }
+
+  /* ---------- toast & modal ---------- */
+  .toasts { position: fixed; right: 20px; bottom: 20px; display: grid; gap: 10px; z-index: 50; }
+  .toast { display: flex; gap: 10px; align-items: flex-start; min-width: 280px; max-width: 420px; padding: 12px 16px; border-radius: 11px;
+           background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); animation: slide .25s ease-out; font-size: 13.5px; }
+  .toast.ok svg { color: var(--success); } .toast.err svg { color: var(--danger); }
+  @keyframes slide { from { transform: translateY(12px); opacity: 0; } }
+  dialog { border: 0; padding: 0; border-radius: 16px; background: var(--surface); color: var(--text); width: min(460px, calc(100% - 32px)); box-shadow: var(--shadow-lg); }
+  dialog::backdrop { background: rgb(8 11 20 / .55); backdrop-filter: blur(3px); }
+  .modal { padding: 24px; }
+  .modal-ico { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--danger-soft); color: var(--danger); margin-bottom: 14px; }
+  .modal h3 { margin: 0 0 6px; font-size: 18px; }
+  .modal p { margin: 0 0 16px; color: var(--muted); }
+  .modal label { font-size: 13px; display: block; margin-bottom: 6px; }
+  .modal input { width: 100%; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); outline: none; }
+  .modal input:focus { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+  .modal code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-family: Consolas, monospace; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1000px) { .split { grid-template-columns: 1fr; } .users { border-right: 0; border-bottom: 1px solid var(--border); } .user-list { max-height: 240px; } }
+  @media (max-width: 820px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; inset: 0 auto 0 0; width: 300px; z-index: 20; transform: translateX(-100%); transition: transform .2s; }
+    .app.nav-open .sidebar { transform: none; box-shadow: var(--shadow-lg); }
+    .menu-btn { display: grid; color: var(--muted); }
+    .topbar { padding: 0 16px; } .content { padding: 18px 16px; }
+    .stats { grid-template-columns: 1fr; }
+    .search input { width: 100%; } .toolbar .search { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></div>
+      <div><div class="brand-name">Document Lock Admin</div><div class="brand-sub">Campaign Manager support</div></div>
+    </div>
+
+    <nav class="side-nav" id="sideNav">
+      <button class="nav-item" data-mode="docs"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Document locks</button>
+      <button class="nav-item" data-mode="logins"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="8" r="4"/><path d="M3 21a7 7 0 0 1 11-5.7M16 16l5 5m0-5-5 5"/></svg>User logins</button>
+    </nav>
+
+    <div class="side-label">Environment</div>
+    <div class="env-switch" id="envSwitch"></div>
+
+    <div id="dbSection" style="display:contents">
+    <div class="side-label">Client databases
+      <button class="icon-btn" id="refreshDbs" title="Refresh list"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg></button>
+    </div>
+    <div class="side-search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="dbFilter" placeholder="Search clients or servers" autocomplete="off">
+    </div>
+    <nav class="db-list" id="dbList"></nav>
+    </div>
+    <div id="loginsSide" class="side-hint" style="display:none">Searches the <b>AlterianAuth</b> login table on every server in the selected environment.</div>
+
+    <div class="side-foot">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      <div style="min-width:0">Connected as<b id="auth">…</b></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="icon-btn menu-btn" id="menuBtn" title="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="crumbs" id="crumbs"></div>
+    </div>
+
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<dialog id="confirmDlg">
+  <form method="dialog" class="modal">
+    <div class="modal-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></div>
+    <h3 id="confirmTitle"></h3>
+    <p id="confirmText"></p>
+    <div id="confirmTypeWrap">
+      <label for="confirmType">Type <code id="confirmWord"></code> to confirm</label>
+      <input id="confirmType" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn danger" id="confirmOk" value="ok">Unlock</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const qs = o => new URLSearchParams(o).toString();
+const short = s => s.split('.')[0];
+const isProd = e => /prod/i.test(e || '');
+
+const I = {
+  db: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
+  server: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>',
+  lock: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  unlock: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>',
+  users: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></svg>',
+  doc: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+  search: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  dl: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 21h16"/></svg>',
+  check: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
+  alert: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>',
+  chev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>',
+  pick: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
+};
+
+const state = {
+  envs: [], env: null, servers: [], loadingDbs: false, target: null,
+  tab: 'locked', users: null, user: null, userDocs: null, locked: null,
+  filters: { db: '', user: '', rows: '' }, sort: { key: null, dir: 1 }, warn: '',
+  mode: (() => { try { return localStorage.getItem('doclock.mode') || 'docs'; } catch { return 'docs'; } })(),
+  login: null,
+  loginByEnv: {},   // last User logins search per environment, restored when switching back
+};
+const newLogin = () => ({ name: '', searched: '', at: null, results: null, loading: false, picked: new Set(), verified: null,
+                          apps: null, appPicked: new Set(), appVerified: null, tab: 'logins' });
+state.login = newLogin();
+const loginKey = (server, login) => `${server}|${login}`;
+const appKey = (server, db, user) => `${server}|${db}|${user}`;
+
+// ---------- helpers ----------
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+  if (!res.ok) throw new Error(data.error || data.title || `HTTP ${res.status}`);
+  return data;
+}
+
+function toast(text, kind = 'ok') {
+  const t = document.createElement('div');
+  t.className = `toast ${kind}`;
+  t.innerHTML = (kind === 'ok' ? I.check : I.alert) + `<div>${esc(text)}</div>`;
+  $('toasts').appendChild(t);
+  setTimeout(() => t.remove(), kind === 'ok' ? 4500 : 9000);
+}
+
+const palette = ['#4f6bff', '#7b5cff', '#e5484d', '#12a571', '#f59e0b', '#0ea5e9', '#d946ef', '#14b8a6', '#f97316', '#6366f1'];
+function avatar(name, sm) {
+  const n = String(name || '?'); let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const parts = n.split(/[_\s.]+/).filter(Boolean);
+  const ini = ((parts[0]?.[0] || '?') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase();
+  return `<span class="avatar${sm ? ' sm' : ''}" style="background:${palette[h % palette.length]}">${esc(ini)}</span>`;
+}
+
+const fmtDate = v => { const d = new Date(v); return isNaN(d) ? v : d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+const isDate = v => typeof v === 'string' && /^\d{4}-\d\d-\d\dT/.test(v);
+const plain = v => v === null || v === undefined ? '' : isDate(v) ? fmtDate(v) : String(v);
+
+// ---------- environments & databases ----------
+async function init() {
+  try {
+    state.envs = await api('/api/environments');
+    let saved = null; try { saved = localStorage.getItem('doclock.env'); } catch {}
+    const order = ['Dev', 'Test', 'Prod'];
+    state.envs.sort((a, b) => (order.indexOf(a.name) + 1 || 9) - (order.indexOf(b.name) + 1 || 9));
+    await selectEnv(state.envs.some(e => e.name === saved) ? saved : state.envs[0]?.name, false);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function selectEnv(env, refresh) {
+  state.env = env; try { localStorage.setItem('doclock.env', env); } catch {}
+  state.target = null; state.users = state.locked = state.userDocs = null; state.user = null; state.warn = '';
+  state.login = state.loginByEnv[env] ??= newLogin();
+  state.loadingDbs = true; render();
+  try {
+    state.servers = await api('/api/databases?' + qs({ env, refresh: !!refresh }));
+    const errs = state.servers.filter(s => s.error);
+    state.warn = errs.length ? `Could not list databases on ${errs.length} server(s):\n` + errs.map(s => `• ${short(s.server)}: ${s.error}`).join('\n') : '';
+  } catch (e) { state.servers = []; toast(e.message, 'err'); }
+  state.loadingDbs = false; render();
+}
+
+async function selectDb(server, db) {
+  state.target = { env: state.env, server, db };
+  state.users = state.locked = state.userDocs = null; state.user = null;
+  state.filters.user = state.filters.rows = ''; state.sort = { key: null, dir: 1 };
+  $('app').classList.remove('nav-open');
+  render();
+  const t = state.target;
+  await Promise.all([
+    api('/api/users?' + qs(t)).then(r => { if (state.target === t) state.users = r.rows; })
+      .catch(e => { if (state.target === t) { state.users = []; toast(e.message, 'err'); } }),
+    loadLocked(t),
+  ]);
+  render();
+}
+
+async function loadLocked(t = state.target) {
+  try { const r = await api('/api/locked?' + qs(t)); if (state.target === t) state.locked = r; }
+  catch (e) { if (state.target === t) { state.locked = { columns: [], rows: [] }; toast(e.message, 'err'); } }
+}
+
+async function selectUser(name) {
+  state.user = name; state.userDocs = null; state.filters.rows = ''; state.sort = { key: null, dir: 1 }; render();
+  const t = state.target;
+  try { const r = await api('/api/user-docs?' + qs({ ...t, user: name })); if (state.target === t && state.user === name) state.userDocs = r; }
+  catch (e) { state.userDocs = { columns: [], rows: [] }; toast(e.message, 'err'); }
+  render();
+}
+
+// ---------- render ----------
+function render() { renderSidebar(); renderCrumbs(); renderContent(); }
+
+function renderSidebar() {
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.mode === state.mode));
+  $('dbSection').style.display = state.mode === 'docs' ? 'contents' : 'none';
+  $('loginsSide').style.display = state.mode === 'logins' ? '' : 'none';
+  $('envSwitch').innerHTML = state.envs.map(e => `<button class="env-btn${e.name === state.env ? ' active' : ''}" data-env="${esc(e.name)}">
+    <span class="dot ${e.name.toLowerCase()}"></span>${esc(e.name)}</button>`).join('');
+  const env = state.envs.find(e => e.name === state.env);
+  $('auth').textContent = env ? env.auth : '…';
+  $('refreshDbs').classList.toggle('spin', state.loadingDbs);
+
+  if (state.loadingDbs) { $('dbList').innerHTML = Array.from({ length: 7 }, (_, i) => `<div class="skel dark" style="margin:14px 10px;width:${55 + (i * 17) % 40}%"></div>`).join(''); return; }
+  const f = state.filters.db.toLowerCase();
+  const html = state.servers.map(s => {
+    const dbs = s.databases.filter(d => !f || d.toLowerCase().includes(f) || s.server.toLowerCase().includes(f));
+    if (!dbs.length && !(s.error && !f)) return '';
+    return `<div class="srv"><div class="srv-head">${I.server}${esc(short(s.server))}<span class="count">${s.error ? '!' : s.databases.length}</span></div>` +
+      (s.error ? `<div class="srv-err">Unavailable</div>` : '') +
+      dbs.map(d => {
+        const active = state.target && state.target.server === s.server && state.target.db === d;
+        return `<button class="db-item${active ? ' active' : ''}" data-server="${esc(s.server)}" data-db="${esc(d)}">${I.db}<span>${esc(d)}</span></button>`;
+      }).join('') + '</div>';
+  }).join('');
+  $('dbList').innerHTML = html || `<div style="padding:20px 10px;color:var(--sidebar-muted);font-size:13px">No client databases found.</div>`;
+}
+
+function renderCrumbs() {
+  if (state.mode === 'logins') {
+    $('crumbs').innerHTML = `<span>${esc(state.env || '')}</span>${I.chev}<b>User logins</b>` +
+      (state.login.searched ? `${I.chev}<b>${esc(state.login.searched)}_*</b>` : '');
+    return;
+  }
+  const t = state.target;
+  $('crumbs').innerHTML = `<span>${esc(state.env || '')}</span>` +
+    (t ? `${I.chev}<span>${esc(short(t.server))}</span>${I.chev}<b>${esc(t.db)}</b>` : `${I.chev}<b>Select a client</b>`);
+}
+
+function renderContent() {
+  if (state.mode === 'logins') { $('content').innerHTML = loginsView(); return; }
+  const t = state.target;
+  const banner = state.warn ? `<div class="banner">${I.alert}<div>${esc(state.warn)}</div></div>` : '';
+  if (!t) {
+    const total = state.servers.reduce((a, s) => a + s.databases.length, 0);
+    $('content').innerHTML = banner + `<div class="card"><div class="empty welcome"><div class="ico">${I.pick}</div>
+      <h4>${state.loadingDbs ? 'Finding client databases…' : 'Choose a client database'}</h4>
+      <div>${state.loadingDbs ? `Checking every ${esc(state.env)} server.` : `${total} client database(s) across ${state.servers.length} ${esc(state.env)} server(s). Pick one from the sidebar to manage document locks.`}</div></div></div>`;
+    return;
+  }
+
+  const lockedN = state.locked ? state.locked.rows.length : null;
+  const usersN = state.users ? state.users.length : null;
+  const val = (v, small) => v === null ? '<div class="skel" style="width:60px;height:22px"></div>' : `<div class="stat-val${small ? ' small' : ''}">${v}</div>`;
+
+  $('content').innerHTML = banner + `
+    <div class="hero"><div>
+      <h1>${esc(t.db)}<span class="env-pill${isProd(t.env) ? ' prod' : ''}"><span class="dot ${t.env.toLowerCase()}"></span>${esc(t.env)}</span></h1>
+      <p>${esc(t.server)}</p></div></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-icon red">${I.lock}</div><div>${val(lockedN)}<div class="stat-lbl">Locked documents</div></div></div>
+      <div class="stat"><div class="stat-icon">${I.users}</div><div>${val(usersN)}<div class="stat-lbl">Users</div></div></div>
+      <div class="stat"><div class="stat-icon green">${I.server.replace(/13/g, '20')}</div><div style="min-width:0">${val(esc(short(t.server)), true)}<div class="stat-lbl">Server</div></div></div>
+    </div>
+    <div class="card">
+      <div class="tabs">
+        <button class="tab${state.tab === 'locked' ? ' active' : ''}" data-tab="locked">${I.lock.replace(/20/g, '16')}Locked documents<span class="n">${lockedN ?? '…'}</span></button>
+        <button class="tab${state.tab === 'user' ? ' active' : ''}" data-tab="user">${I.users.replace(/20/g, '16')}By user<span class="n">${usersN ?? '…'}</span></button>
+      </div>
+      ${state.tab === 'locked' ? lockedView() : userView()}
+    </div>`;
+  const rf = $('rowFilter'); if (rf && document.activeElement?.dataset?.refocus === 'rows') rf.focus();
+}
+
+function toolbar(title, result, actions) {
+  return `<div class="toolbar"><h3>${title}</h3>
+    <div class="search">${I.search}<input id="rowFilter" placeholder="Filter rows" value="${esc(state.filters.rows)}" autocomplete="off"></div>
+    <button class="btn" data-act="export" ${result && result.rows.length ? '' : 'disabled'}>${I.dl}Export</button>${actions || ''}</div>`;
+}
+
+function lockedView() {
+  const r = state.locked;
+  const actions = `<button class="btn danger" data-act="unlock-all" ${r && r.rows.length ? '' : 'disabled'}>${I.unlock}Unlock all</button>`;
+  return toolbar('All locked documents', r, actions) + tableOrState(r, {
+    emptyTitle: 'No locked documents', emptyText: 'Nothing is locked in this database right now.' });
+}
+
+function userView() {
+  const f = state.filters.user.toLowerCase();
+  let list;
+  if (!state.users) list = Array.from({ length: 8 }, () => `<div style="display:flex;gap:10px;align-items:center;padding:8px 10px"><div class="skel" style="width:30px;height:30px;border-radius:50%"></div><div class="skel" style="flex:1"></div></div>`).join('');
+  else {
+    const users = state.users.filter(u => !f || u.name.toLowerCase().includes(f));
+    list = users.map(u => `<button class="user${u.name === state.user ? ' active' : ''}" data-user="${esc(u.name)}">${avatar(u.name)}
+      <div style="min-width:0"><div class="uname">${esc(u.name)}</div><div class="usub">${u.enabled ? 'Active' : 'Disabled'}</div></div></button>`).join('')
+      || `<div class="usub" style="padding:10px">No users match.</div>`;
+  }
+
+  let detail;
+  if (!state.user) detail = `<div class="empty"><div class="ico">${I.users}</div><h4>Select a user</h4><div>See the documents they authored and release the locks they hold.</div></div>`;
+  else {
+    const r = state.userDocs;
+    const n = r ? r.rows.filter(x => x.IsLocked).length : 0;
+    const actions = `<button class="btn ghost-danger" data-act="unlock-user">${I.unlock}Unlock user's documents</button>`;
+    detail = toolbar(`${avatar(state.user, true)}${esc(state.user)}${r ? `<span class="chip ${n ? 'locked' : 'free'}">${n} locked</span>` : ''}`, r, actions) +
+      tableOrState(r, { emptyTitle: 'No documents', emptyText: 'This user has not authored any documents in this database.' });
+  }
+  return `<div class="split"><div class="users"><div class="search">${I.search}<input id="userFilter" placeholder="Search users" value="${esc(state.filters.user)}" autocomplete="off"></div>
+    <div class="user-list">${list}</div></div><div class="detail">${detail}</div></div>`;
+}
+
+const personCols = /^(Author|AuthorName|LockedBy|LockingUserName)$/;
+const idCols = /(^Id$|ID$|Id$)/;
+
+function cell(col, v) {
+  if (col === 'IsLocked') return v ? `<span class="chip locked">Locked</span>` : `<span class="chip free">Unlocked</span>`;
+  if (v === null || v === undefined || v === '') return '<span style="color:var(--muted)">—</span>';
+  if (personCols.test(col)) return `<span class="who">${avatar(v, true)}${esc(v)}</span>`;
+  if (/^(DocName|DocumentName)$/.test(col)) return `<span class="who" style="font-weight:500">${I.doc}${esc(v)}</span>`;
+  return esc(plain(v));
+}
+
+function tableOrState(r, { emptyTitle, emptyText }) {
+  if (!r) return `<div style="padding:18px">${Array.from({ length: 6 }, () => '<div class="skel" style="margin:14px 0"></div>').join('')}</div>`;
+  if (!r.rows.length) return `<div class="empty"><div class="ico green">${I.check.replace(/18/g, '26')}</div><h4>${emptyTitle}</h4><div>${emptyText}</div></div>`;
+  const f = state.filters.rows.toLowerCase();
+  let rows = r.rows.filter(row => !f || r.columns.some(c => plain(row[c]).toLowerCase().includes(f)));
+  const { key, dir } = state.sort;
+  if (key) rows = [...rows].sort((a, b) => { const x = a[key], y = b[key]; return (x === y ? 0 : x === null ? 1 : y === null ? -1 : x > y ? 1 : -1) * dir; });
+  if (!rows.length) return `<div class="empty"><h4>No matching rows</h4><div>Nothing matches “${esc(state.filters.rows)}”.</div></div>`;
+  return `<div class="table-wrap"><table><thead><tr>${r.columns.map(c => `<th data-sort="${esc(c)}">${esc(c.replace(/([a-z])([A-Z])/g, '$1 $2'))}${key === c ? `<span class="arrow">${dir > 0 ? '▲' : '▼'}</span>` : ''}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(row => `<tr>${r.columns.map(c => `<td class="${idCols.test(c) && !personCols.test(c) ? 'mono' : ''}">${cell(c, row[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+// ---------- user logins ----------
+const isOn = v => v === true || v === 1 || v === '1' || v === 'True';
+
+function loginsView() {
+  const L = state.login, env = state.env || '';
+  const prodPill = `<span class="env-pill${isProd(env) ? ' prod' : ''}"><span class="dot ${env.toLowerCase()}"></span>${esc(env)}</span>`;
+  let html = `<div class="hero"><div><h1>User logins${prodPill}</h1>
+    <p>Find application logins by name on every ${esc(env)} server and disable them. Rows are never deleted.</p></div></div>
+    <div class="card" style="margin-bottom:22px">
+      <div class="login-search">
+        <div class="search">${I.search}<input id="loginName" placeholder="Name without the underscore, e.g. ABISHEKK" value="${esc(L.name)}" autocomplete="off"></div>
+        <button class="btn primary" data-act="find-logins" ${L.loading ? 'disabled' : ''}>${I.search}${L.loading ? 'Searching…' : 'Search all servers'}</button>
+      </div>
+      <div class="hint">Matches <code>login LIKE '${esc((L.name || 'NAME').trim().replace(/[_%]+$/, '').toUpperCase())}[_]%'</code> in AlterianAuth.AUTH.LoginIndex.${L.at ? ` · Results for <b>${esc(L.searched)}</b> loaded at ${L.at.toLocaleTimeString()}. Search again to refresh.` : ''}</div>
+    </div>`;
+
+  if (!L.loading && !L.results && !L.apps) return html + `<div class="card"><div class="empty"><div class="ico">${I.users}</div><h4>Search for a user</h4>
+    <div>Enter the name part of the login (for example <b>LAKNOX</b> finds LAKNOX_SME, LAKNOX_HCM, …).</div></div></div>`;
+
+  const nLogins = L.results ? L.results.reduce((a, s) => a + s.rows.length, 0) : '…';
+  const nApps = L.apps ? L.apps.reduce((a, d) => a + d.rows.length, 0) : '…';
+  const tab = L.tab || 'logins';
+  html += `<div class="card" style="margin-bottom:16px"><div class="tabs" style="border:0">
+      <button class="tab${tab === 'logins' ? ' active' : ''}" data-ltab="logins">${I.lock.replace(/20/g, '16')}Logins (AlterianAuth)<span class="n">${nLogins}</span></button>
+      <button class="tab${tab === 'apps' ? ' active' : ''}" data-ltab="apps">${I.users.replace(/20/g, '16')}Application users<span class="n">${nApps}</span></button>
+    </div></div>`;
+  return html + (tab === 'apps' ? appUsersView() : loginResultsView());
+}
+
+function loginResultsView() {
+  const L = state.login;
+  let html = '';
+  if (L.verified) html += `<div class="banner ${L.verified.ok ? 'ok' : ''}">${L.verified.ok ? I.check : I.alert}<div>${esc(L.verified.text)}</div></div>`;
+  if (!L.results) return html + `<div class="card" style="padding:18px">${Array.from({ length: 6 }, () => '<div class="skel" style="margin:14px 0"></div>').join('')}</div>`;
+
+  const res = L.results;
+  const all = res.flatMap(s => s.rows.map(r => ({ server: s.server, row: r })));
+  const enabled = all.filter(x => isOn(x.row.enabled));
+  const errs = res.filter(s => s.error);
+  const found = res.filter(s => s.rows.length);
+  const picked = enabled.filter(x => L.picked.has(loginKey(x.server, x.row.login)));
+
+  html += `<div class="stats">
+      <div class="stat"><div class="stat-icon">${I.users}</div><div><div class="stat-val">${all.length}</div><div class="stat-lbl">Matching logins on ${found.length} server(s)</div></div></div>
+      <div class="stat"><div class="stat-icon red">${I.lock}</div><div><div class="stat-val">${enabled.length}</div><div class="stat-lbl">Still enabled</div></div></div>
+      <div class="stat"><div class="stat-icon ${errs.length ? 'red' : 'green'}">${errs.length ? I.alert.replace(/18/g, '20') : I.check.replace(/18/g, '20')}</div><div><div class="stat-val">${errs.length}</div><div class="stat-lbl">Servers not checked</div></div></div>
+    </div>`;
+
+  const cols = [...new Set(res.flatMap(s => s.columns))].filter(c => !/^(id|login|enabled)$/i.test(c));
+  const blocks = res.map(s => {
+    const status = s.error ? `<span class="chip err">Error</span>` : s.rows.length ? `<span class="chip ${s.rows.some(r => isOn(r.enabled)) ? 'locked' : 'free'}">${s.rows.length} found</span>` : `<span class="chip none">No match</span>`;
+    let body = '';
+    if (s.error) body = `<div class="hint" style="padding:12px 18px;margin:0;color:var(--danger)">${esc(s.error)}</div>`;
+    else if (s.rows.length) body = `<div class="table-wrap" style="max-height:none"><table><thead><tr><th class="check"></th><th>Login</th><th>Status</th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>` +
+      s.rows.map(r => {
+        const on = isOn(r.enabled), k = loginKey(s.server, r.login);
+        return `<tr><td class="check">${on ? `<input type="checkbox" data-pick="${esc(k)}" ${L.picked.has(k) ? 'checked' : ''}>` : ''}</td>
+          <td><span class="who" style="font-weight:500">${avatar(r.login, true)}${esc(r.login)}</span></td>
+          <td>${on ? '<span class="chip locked">Enabled</span>' : '<span class="chip free">Disabled</span>'}</td>
+          ${cols.map(c => `<td>${r[c] === null || r[c] === undefined ? '<span style="color:var(--muted)">—</span>' : esc(plain(r[c]))}</td>`).join('')}</tr>`;
+      }).join('') + '</tbody></table></div>';
+    if (!s.rows.length && !s.error) return '';
+    return `<div class="srv-block"><div class="srv-title">${I.server}${esc(short(s.server))}<span class="muted">${esc(s.server)}</span>${status}</div>${body}</div>`;
+  }).join('');
+  const noMatch = res.filter(s => !s.error && !s.rows.length).map(s => short(s.server));
+
+  html += `<div class="card">
+    <div class="toolbar"><h3>Results for ${esc(L.searched)}_*</h3>
+      <button class="btn" data-act="pick-all" ${enabled.length ? '' : 'disabled'}>${picked.length === enabled.length && enabled.length ? 'Clear selection' : 'Select all enabled'}</button>
+      <button class="btn" data-act="export-logins" ${all.length ? '' : 'disabled'}>${I.dl}Export</button>
+      <button class="btn danger" data-act="disable-logins" ${picked.length ? '' : 'disabled'}>${I.unlock}Disable ${picked.length || ''} selected</button>
+    </div>
+    ${blocks || `<div class="empty"><div class="ico green">${I.check.replace(/18/g, '26')}</div><h4>No matching logins</h4><div>No server has a login starting with ${esc(L.searched)}_.</div></div>`}
+    ${noMatch.length && blocks ? `<div class="hint" style="padding:12px 18px;margin:0;border-top:1px solid var(--border)">No match on: ${esc(noMatch.join(', '))}</div>` : ''}
+  </div>`;
+  return html;
+}
+
+// Application users = AL.UserIndex rows in each client database (enable/disable also moves the user folder)
+function appUsersView() {
+  const L = state.login;
+  let html = `<p class="muted" style="margin:0 2px 14px;color:var(--muted)">AL.UserIndex in every client database. Disable moves the user to <b>Disabled Users</b>; enable moves them back to <b>Users</b>.</p>`;
+  if (L.appVerified) html += `<div class="banner ${L.appVerified.ok ? 'ok' : ''}">${L.appVerified.ok ? I.check : I.alert}<div>${esc(L.appVerified.text)}</div></div>`;
+  if (!L.apps) return html + `<div class="card" style="padding:18px">${Array.from({ length: 4 }, () => '<div class="skel" style="margin:14px 0"></div>').join('')}</div>`;
+
+  const all = L.apps.flatMap(d => d.rows.map(r => ({ d, r, k: appKey(d.server, d.db, r.name) })));
+  const picked = all.filter(x => L.appPicked.has(x.k));
+  const errs = L.apps.filter(d => d.error);
+  const extra = ['emailaddress', 'title', 'modified'];
+
+  const blocks = L.apps.filter(d => d.rows.length).map(d => `<div class="srv-block">
+      <div class="srv-title">${I.db}${esc(d.db)}<span class="muted">${esc(short(d.server))}</span>
+        <span class="chip ${d.rows.some(r => isOn(r.enabled)) ? 'locked' : 'free'}">${d.rows.length} user(s)</span></div>
+      <div class="table-wrap" style="max-height:none"><table><thead><tr><th class="check"></th><th>User</th><th>Status</th><th>Folder</th>${extra.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>` +
+      d.rows.map(r => {
+        const k = appKey(d.server, d.db, r.name), on = isOn(r.enabled);
+        const folderOk = on ? r.folder === 'Users' : r.folder === 'Disabled Users';
+        return `<tr><td class="check"><input type="checkbox" data-apppick="${esc(k)}" ${L.appPicked.has(k) ? 'checked' : ''}></td>
+          <td><span class="who" style="font-weight:500">${avatar(r.name, true)}${esc(r.name)}</span></td>
+          <td>${on ? '<span class="chip locked">Enabled</span>' : '<span class="chip free">Disabled</span>'}</td>
+          <td>${r.folder ? esc(r.folder) : '<span style="color:var(--muted)">—</span>'}${folderOk ? '' : ' <span class="chip err" title="Folder does not match the enabled state">mismatch</span>'}</td>
+          ${extra.map(c => `<td>${r[c] === null || r[c] === undefined ? '<span style="color:var(--muted)">—</span>' : esc(plain(r[c]))}</td>`).join('')}</tr>`;
+      }).join('') + '</tbody></table></div></div>').join('');
+
+  const errBlock = errs.length ? `<div class="hint" style="padding:12px 18px;margin:0;border-top:1px solid var(--border);color:var(--danger);white-space:pre-wrap">Could not search ${errs.length} database(s):\n${esc(errs.map(d => `${short(d.server)} / ${d.db}: ${d.error}`).join('\n'))}</div>` : '';
+
+  return html + `<div class="card">
+    <div class="toolbar"><h3>${all.length} application user(s) for ${esc(L.searched)}_*</h3>
+      <button class="btn" data-act="app-pick-all" ${all.length ? '' : 'disabled'}>${picked.length === all.length && all.length ? 'Clear selection' : 'Select all'}</button>
+      <button class="btn" data-act="app-enable" ${picked.length ? '' : 'disabled'}>Enable ${picked.length || ''} selected</button>
+      <button class="btn danger" data-act="app-disable" ${picked.length ? '' : 'disabled'}>${I.unlock}Disable ${picked.length || ''} selected</button>
+    </div>
+    ${blocks || `<div class="empty"><div class="ico green">${I.check.replace(/18/g, '26')}</div><h4>No application users</h4><div>No client database has a user starting with ${esc(L.searched)}_.</div></div>`}
+    ${errBlock}</div>`;
+}
+
+async function loadAppUsers(name) {
+  const L = state.login;
+  try {
+    L.apps = await api('/api/app-users?' + qs({ env: state.env, name }));
+    L.appPicked = new Set(L.apps.flatMap(d => d.rows.filter(r => isOn(r.enabled)).map(r => appKey(d.server, d.db, r.name))));
+  } catch (e) { L.apps = []; toast(e.message, 'err'); }
+}
+
+async function setAppUsers(enable, btn) {
+  const L = state.login, env = state.env;
+  const users = [...L.appPicked].map(k => { const [server, db, ...u] = k.split('|'); return { server, db, user: u.join('|') }; });
+  const folder = enable ? 'Users' : 'Disabled Users';
+  const confirm = await confirmAction(`${enable ? 'Enable' : 'Disable'} ${users.length} application user(s)?`,
+    `Sets enabled = ${enable ? 1 : 0} and moves them to the "${folder}" folder in ${new Set(users.map(u => u.server + u.db)).size} client database(s) in ${env}.`, L.searched);
+  if (confirm === null) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/api/app-users/set-enabled', { env, name: L.searched, confirm, enabled: enable, users });
+    const changed = r.reduce((a, x) => a + x.rows, 0), failed = r.filter(x => x.error);
+    toast(`${enable ? 'Enabled' : 'Disabled'} ${changed} application user(s).` + (failed.length ? ` ${failed.length} failed.` : ''), failed.length ? 'err' : 'ok');
+    L.apps = null; render();
+    await loadAppUsers(L.searched);
+    // verify: every changed user now has the expected state and folder
+    const wanted = new Set(users.map(u => appKey(u.server, u.db, u.user)));
+    const wrong = (L.apps || []).flatMap(d => d.rows.filter(x => wanted.has(appKey(d.server, d.db, x.name)) && (isOn(x.enabled) !== enable || x.folder !== folder)).map(x => `${d.db} / ${x.name}`));
+    L.appVerified = !wrong.length && !failed.length
+      ? { ok: true, text: `Verified: ${users.length} user(s) are ${enable ? 'enabled' : 'disabled'} and in "${folder}".` }
+      : { ok: false, text: [...wrong.map(w => `Not as expected: ${w}`), ...failed.map(f => `${short(f.server)} / ${f.db} / ${f.user}: ${f.error}`)].join('\n') };
+    render();
+  } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+}
+
+async function findLogins(keepVerified) {
+  const L = state.login;
+  const name = L.name.trim().replace(/[_%]+$/, '');
+  if (name.length < 3) { toast('Enter at least 3 characters of the name.', 'err'); return; }
+  L.loading = true; if (!keepVerified) { L.verified = null; L.appVerified = null; L.apps = null; } L.results = null; render();
+  if (!keepVerified) loadAppUsers(name).then(() => { if (state.mode === 'logins') renderContent(); });
+  try {
+    L.results = await api('/api/logins?' + qs({ env: state.env, name }));
+    L.searched = name.toUpperCase(); L.at = new Date();
+    L.picked = new Set(L.results.flatMap(s => s.rows.filter(r => isOn(r.enabled)).map(r => loginKey(s.server, r.login))));
+  } catch (e) { toast(e.message, 'err'); }
+  L.loading = false; render();
+  const input = $('loginName'); if (input && !keepVerified) input.focus();
+}
+
+async function disableLogins(btn) {
+  const L = state.login, env = state.env;
+  const logins = [...L.picked].map(k => { const i = k.indexOf('|'); return { server: k.slice(0, i), login: k.slice(i + 1) }; });
+  const servers = new Set(logins.map(l => l.server)).size;
+  const errs = (L.results || []).filter(s => s.error).length;
+  const confirm = await confirmAction(`Disable ${logins.length} login(s)?`,
+    `Sets enabled = 0 for ${logins.length} login(s) matching ${L.searched}_* on ${servers} server(s) in ${env}.` +
+    (errs ? ` ${errs} server(s) could not be checked and will be skipped.` : '') + ' Export first if you want a copy of the rows.', L.searched);
+  if (confirm === null) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/api/disable-logins', { env, name: L.searched, confirm, logins });
+    const changed = r.reduce((a, x) => a + x.rows, 0), failed = r.filter(x => x.error);
+    toast(`Disabled ${changed} login(s).` + (failed.length ? ` ${failed.length} failed.` : ''), failed.length ? 'err' : 'ok');
+    await findLogins(true);   // verify: search again
+    const left = (L.results || []).flatMap(s => s.rows.filter(x => isOn(x.enabled)));
+    const notChecked = (L.results || []).filter(s => s.error).length;
+    L.verified = left.length === 0 && notChecked === 0 && !failed.length
+      ? { ok: true, text: `Verified: no enabled logins matching ${L.searched}_* remain on any ${env} server.` }
+      : { ok: false, text: [left.length ? `${left.length} login(s) still enabled.` : '', notChecked ? `${notChecked} server(s) could not be verified.` : '',
+          ...failed.map(f => `${short(f.server)} / ${f.login}: ${f.error}`)].filter(Boolean).join('\n') };
+    render();
+  } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+}
+
+function exportLogins() {
+  const res = state.login.results; if (!res) return;
+  const cols = ['Server', ...new Set(res.flatMap(s => s.columns))];
+  const q = v => `"${plain(v).replace(/"/g, '""')}"`;
+  const lines = res.flatMap(s => s.rows.map(r => cols.map(c => q(c === 'Server' ? s.server : r[c])).join(',')));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([[cols.map(q).join(','), ...lines].join('\r\n')], { type: 'text/csv' }));
+  a.download = `logins_${state.login.searched}_${state.env}.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------- actions ----------
+function exportCsv() {
+  const r = state.tab === 'locked' ? state.locked : state.userDocs; if (!r) return;
+  const q = v => `"${plain(v).replace(/"/g, '""')}"`;
+  const csv = [r.columns.map(q).join(','), ...r.rows.map(row => r.columns.map(c => q(row[c])).join(','))].join('\r\n');
+  const name = state.tab === 'locked' ? `locked_${state.target.db}` : `docs_${state.user}_${state.target.db}`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = name.replace(/[^\w.-]+/g, '_') + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function confirmAction(title, text, typeWord) {
+  return new Promise(resolve => {
+    $('confirmTitle').textContent = title; $('confirmText').textContent = text;
+    $('confirmTypeWrap').style.display = typeWord ? '' : 'none';
+    $('confirmWord').textContent = typeWord || ''; $('confirmType').value = '';
+    $('confirmOk').disabled = !!typeWord;
+    $('confirmType').oninput = () => $('confirmOk').disabled = $('confirmType').value.trim().toLowerCase() !== typeWord.toLowerCase();
+    $('confirmDlg').onclose = () => resolve($('confirmDlg').returnValue === 'ok' ? $('confirmType').value.trim() : null);
+    $('confirmDlg').returnValue = '';
+    $('confirmDlg').showModal();
+    if (typeWord) $('confirmType').focus();
+  });
+}
+
+async function unlockUser(btn) {
+  const t = state.target, user = state.user;
+  const ok = await confirmAction(`Unlock ${user}'s documents?`,
+    `This clears every document lock held by ${user} in ${t.db} on ${short(t.server)} (${t.env}).`, isProd(t.env) ? user : null);
+  if (ok === null) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/api/unlock-user', { ...t, user });
+    toast(`Released ${r.rows} lock(s) held by ${user}.`);
+    await Promise.all([selectUser(user), loadLocked(t)]); render();
+  } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+}
+
+async function unlockAll(btn) {
+  const t = state.target;
+  const confirm = await confirmAction('Unlock all documents?',
+    `This clears every document lock in ${t.db} on ${short(t.server)} (${t.env}) for all users.`, t.db);
+  if (confirm === null) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/api/unlock-all', { ...t, confirm });
+    toast(`Released ${r.rows} lock(s) in ${t.db}.`);
+    state.locked = null; render(); await loadLocked(t); render();
+  } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+}
+
+// ---------- events (delegated, so re-rendering keeps them) ----------
+document.addEventListener('click', e => {
+  const lt = e.target.closest('[data-ltab]');
+  if (lt) { state.login.tab = lt.dataset.ltab; renderContent(); return; }
+  const el = e.target.closest('[data-mode],[data-env],[data-db],[data-tab],[data-user],[data-act],[data-sort]');
+  if (!el) return;
+  if (el.dataset.mode) {
+    state.mode = el.dataset.mode; try { localStorage.setItem('doclock.mode', state.mode); } catch {}
+    $('app').classList.remove('nav-open'); render();
+  }
+  else if (el.dataset.act === 'find-logins') findLogins();
+  else if (el.dataset.act === 'app-enable') setAppUsers(true, el);
+  else if (el.dataset.act === 'app-disable') setAppUsers(false, el);
+  else if (el.dataset.act === 'app-pick-all') {
+    const L = state.login, all = (L.apps || []).flatMap(d => d.rows.map(r => appKey(d.server, d.db, r.name)));
+    L.appPicked = all.every(k => L.appPicked.has(k)) ? new Set() : new Set(all); renderContent();
+  }
+  else if (el.dataset.act === 'disable-logins') disableLogins(el);
+  else if (el.dataset.act === 'export-logins') exportLogins();
+  else if (el.dataset.act === 'pick-all') {
+    const L = state.login;
+    const enabled = (L.results || []).flatMap(s => s.rows.filter(r => isOn(r.enabled)).map(r => loginKey(s.server, r.login)));
+    L.picked = enabled.every(k => L.picked.has(k)) ? new Set() : new Set(enabled); renderContent();
+  }
+  else if (el.dataset.env) { if (el.dataset.env !== state.env) selectEnv(el.dataset.env, false); }
+  else if (el.dataset.db) selectDb(el.dataset.server, el.dataset.db);
+  else if (el.dataset.tab) { state.tab = el.dataset.tab; state.filters.rows = ''; state.sort = { key: null, dir: 1 }; renderContent(); }
+  else if (el.dataset.user) selectUser(el.dataset.user);
+  else if (el.dataset.sort) { const k = el.dataset.sort; state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : 1 }; renderContent(); }
+  else if (el.dataset.act === 'export') exportCsv();
+  else if (el.dataset.act === 'unlock-all') unlockAll(el);
+  else if (el.dataset.act === 'unlock-user') unlockUser(el);
+});
+
+document.addEventListener('input', e => {
+  const id = e.target.id;
+  if (id === 'dbFilter') { state.filters.db = e.target.value; renderSidebar(); }
+  else if (id === 'loginName') {
+    state.login.name = e.target.value;
+    const hint = document.querySelector('.hint code');
+    if (hint) hint.textContent = `login LIKE '${(state.login.name.trim().replace(/[_%]+$/, '') || 'NAME').toUpperCase()}[_]%'`;
+  }
+  else if (id === 'userFilter' || id === 'rowFilter') {
+    state.filters[id === 'userFilter' ? 'user' : 'rows'] = e.target.value;
+    const pos = e.target.selectionStart; renderContent();
+    const again = $(id); again.focus(); again.setSelectionRange(pos, pos);
+  }
+});
+
+document.addEventListener('change', e => {
+  const ak = e.target.dataset?.apppick;
+  if (ak) { e.target.checked ? state.login.appPicked.add(ak) : state.login.appPicked.delete(ak); renderContent(); return; }
+  const k = e.target.dataset?.pick; if (!k) return;
+  e.target.checked ? state.login.picked.add(k) : state.login.picked.delete(k);
+  renderContent();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'loginName' && !state.login.loading) findLogins();
+});
+
+$('refreshDbs').onclick = () => state.env && selectEnv(state.env, true);
+$('menuBtn').onclick = () => $('app').classList.toggle('nav-open');
+
+render();
+init();
+</script>
+</body>
+</html>

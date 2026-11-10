@@ -1,0 +1,12 @@
+﻿
+# DocLockAdmin local secrets and build output
+DocLockAdmin/appsettings.Local.json
+DocLockAdmin/bin/
+DocLockAdmin/obj/
+DocLockAdmin/unlock_audit.csv
+
+# Script output (contains login data)
+before_*.csv
+disable_log_*.csv
+delete_log_*.csv
+query_results_*.csv
